@@ -12,7 +12,7 @@ import (
 	"github.com/dagu-dev/dagu/internal/config"
 	"github.com/dagu-dev/dagu/internal/constants"
 	"github.com/dagu-dev/dagu/internal/dag"
-	"github.com/dagu-dev/dagu/internal/utils"
+	"github.com/dagu-dev/dagu/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	testHomeDir = utils.MustTempDir("scheduler-test")
+	testHomeDir = util.MustTempDir("scheduler-test")
 	changeHomeDir(testHomeDir)
 	code := m.Run()
 	_ = os.RemoveAll(testHomeDir)
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 
 func changeHomeDir(homeDir string) {
 	_ = os.Setenv("HOME", homeDir)
-	_ = config.LoadConfig(homeDir)
+	_ = config.LoadConfig()
 }
 
 func TestScheduler(t *testing.T) {
@@ -172,7 +172,7 @@ func TestSchedulerCancel(t *testing.T) {
 }
 
 func TestSchedulerRetryFail(t *testing.T) {
-	cmd := path.Join(utils.MustGetwd(), "testdata/testfile.sh")
+	cmd := path.Join(util.MustGetwd(), "testdata/testfile.sh")
 	g, sc, err := testSchedule(t,
 		dag.Step{
 			Name:        "1",
@@ -209,7 +209,7 @@ func TestSchedulerRetryFail(t *testing.T) {
 }
 
 func TestSchedulerRetrySuccess(t *testing.T) {
-	cmd := path.Join(utils.MustGetwd(), "testdata/testfile.sh")
+	cmd := path.Join(util.MustGetwd(), "testdata/testfile.sh")
 	tmpDir, err := os.MkdirTemp("", "scheduler_test")
 	tmpFile := path.Join(tmpDir, "flag")
 
@@ -234,14 +234,20 @@ func TestSchedulerRetrySuccess(t *testing.T) {
 
 	go func() {
 		// create file for successful retry
-		<-time.After(time.Millisecond * 300)
+		timer1 := time.NewTimer(time.Millisecond * 300)
+		defer timer1.Stop()
+		<-timer1.C
+
 		f, err := os.Create(tmpFile)
 		require.NoError(t, err)
-		f.Close()
+		_ = f.Close()
 	}()
 
 	go func() {
-		<-time.After(time.Millisecond * 500)
+		timer2 := time.NewTimer(time.Millisecond * 500)
+		defer timer2.Stop()
+		<-timer2.C
+
 		nodes := g.Nodes()
 
 		// scheduled for retry
@@ -250,7 +256,9 @@ func TestSchedulerRetrySuccess(t *testing.T) {
 		startedAt := nodes[1].State().StartedAt
 
 		// wait for retry
-		<-time.After(time.Millisecond * 500)
+		timer3 := time.NewTimer(time.Millisecond * 500)
+		defer timer3.Stop()
+		<-timer3.C
 
 		// check time difference
 		retriedAt := nodes[1].State().RetriedAt
@@ -363,7 +371,10 @@ func TestSchedulerOnSignal(t *testing.T) {
 	sc := &Scheduler{Config: &Config{}}
 
 	go func() {
-		<-time.After(time.Millisecond * 50)
+		timer := time.NewTimer(time.Millisecond * 50)
+		defer timer.Stop()
+		<-timer.C
+
 		sc.Signal(g, syscall.SIGTERM, nil, false)
 	}()
 
@@ -392,7 +403,9 @@ func TestSchedulerOnCancel(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		<-time.After(time.Millisecond * 500)
+		timer := time.NewTimer(time.Millisecond * 500)
+		defer timer.Stop()
+		<-timer.C
 		sc.Signal(g, syscall.SIGTERM, done, false)
 	}()
 
@@ -473,7 +486,9 @@ func TestRepeat(t *testing.T) {
 	sc := &Scheduler{Config: &Config{}}
 
 	go func() {
-		<-time.After(time.Millisecond * 3000)
+		timer := time.NewTimer(time.Millisecond * 3000)
+		defer timer.Stop()
+		<-timer.C
 		sc.Cancel(g)
 	}()
 
@@ -524,7 +539,9 @@ func TestStopRepetitiveTaskGracefully(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		<-time.After(time.Millisecond * 100)
+		timer := time.NewTimer(time.Millisecond * 100)
+		defer timer.Stop()
+		<-timer.C
 		sc.Signal(g, syscall.SIGTERM, done, false)
 	}()
 
@@ -587,7 +604,6 @@ func TestNodeTeardownFailure(t *testing.T) {
 			Name:    "1",
 			Command: "sleep",
 			Args:    []string{"1"},
-			Dir:     "${HOME}",
 		},
 	)
 	sc := &Scheduler{Config: &Config{}}
@@ -601,6 +617,7 @@ func TestNodeTeardownFailure(t *testing.T) {
 	}()
 
 	err := sc.Schedule(context.Background(), g, nil)
+	// file already closed
 	require.Error(t, err)
 
 	require.Equal(t, sc.Status(g), StatusError)
@@ -628,7 +645,7 @@ func TestTakeOutputFromPrevStep(t *testing.T) {
 }
 
 func step(name, command string, depends ...string) dag.Step {
-	cmd, args := utils.SplitCommand(command, false)
+	cmd, args := util.SplitCommand(command, false)
 	return dag.Step{
 		Name:    name,
 		Command: cmd,

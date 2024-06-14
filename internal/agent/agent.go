@@ -26,8 +26,13 @@ import (
 	"github.com/dagu-dev/dagu/internal/reporter"
 	"github.com/dagu-dev/dagu/internal/scheduler"
 	"github.com/dagu-dev/dagu/internal/sock"
-	"github.com/dagu-dev/dagu/internal/utils"
+	"github.com/dagu-dev/dagu/internal/util"
 	"github.com/google/uuid"
+)
+
+var (
+	errFailedStartSocketFrontend = errors.New("failed to start the socket frontend")
+	errDAGAlreadyRunning         = errors.New("the DAG is already running")
 )
 
 // Agent is the interface to run / cancel / signal / status / etc.
@@ -58,8 +63,9 @@ func New(config *Config, e engine.Engine, ds persistence.DataStoreFactory) *Agen
 
 // Config contains the configuration for an Agent.
 type Config struct {
-	DAG *dag.DAG
-	Dry bool
+	DAG     *dag.DAG
+	DAGsDir string
+	Dry     bool
 
 	// RetryTarget is the status to retry.
 	RetryTarget *model.Status
@@ -151,21 +157,24 @@ func (a *Agent) signal(sig os.Signal, allowOverride bool) {
 	go func() {
 		a.scheduler.Signal(a.graph, sig, done, allowOverride)
 	}()
-	timeout := time.After(a.DAG.MaxCleanUpTime)
-	tick := time.After(time.Second * 5)
+	timeout := time.NewTimer(a.DAG.MaxCleanUpTime)
+	tick := time.NewTimer(time.Second * 5)
+	defer timeout.Stop()
+	defer tick.Stop()
+
 	for {
 		select {
 		case <-done:
 			log.Printf("All child processes have been terminated.")
 			return
-		case <-timeout:
+		case <-timeout.C:
 			log.Printf("Time reached to max cleanup time")
 			a.Kill()
 			return
-		case <-tick:
+		case <-tick.C:
 			log.Printf("Sending signal again")
 			a.scheduler.Signal(a.graph, sig, nil, false)
-			tick = time.After(time.Second * 5)
+			tick.Reset(time.Second * 5)
 		default:
 			log.Printf("Waiting for child processes to exit...")
 			time.Sleep(time.Second * 3)
@@ -174,7 +183,7 @@ func (a *Agent) signal(sig os.Signal, allowOverride bool) {
 }
 
 func (a *Agent) init() {
-	logDir := path.Join(a.DAG.LogDir, utils.ValidFilename(a.DAG.Name, "_"))
+	logDir := path.Join(a.DAG.LogDir, util.ValidFilename(a.DAG.Name, "_"))
 	config := &scheduler.Config{
 		LogDir:        logDir,
 		MaxActiveRuns: a.DAG.MaxActiveRuns,
@@ -212,9 +221,9 @@ func (a *Agent) init() {
 		}}
 	logFilename := filepath.Join(
 		logDir, fmt.Sprintf("agent_%s.%s.%s.log",
-			utils.ValidFilename(a.DAG.Name, "_"),
+			util.ValidFilename(a.DAG.Name, "_"),
 			time.Now().Format("20060102.15:04:05.000"),
-			utils.TruncString(a.requestId, 8),
+			util.TruncString(a.requestId, 8),
 		))
 	a.logManager = &logManager{logFilename: logFilename}
 }
@@ -250,12 +259,10 @@ func (a *Agent) setupDatabase() error {
 	// TODO: do not use the persistence package directly.
 	a.historyStore = a.dataStoreFactory.NewHistoryStore()
 	if err := a.historyStore.RemoveOld(a.DAG.Location, a.DAG.HistRetentionDays); err != nil {
-		utils.LogErr("clean old history data", err)
+		util.LogErr("clean old history data", err)
 	}
-	if err := a.historyStore.Open(a.DAG.Location, time.Now(), a.requestId); err != nil {
-		return err
-	}
-	return nil
+
+	return a.historyStore.Open(a.DAG.Location, time.Now(), a.requestId)
 }
 
 func (a *Agent) setupSocketServer() (err error) {
@@ -284,7 +291,7 @@ func (a *Agent) run(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		utils.LogErr("close log file", a.closeLogFile())
+		util.LogErr("close log file", a.closeLogFile())
 		tl.Close()
 	}()
 
@@ -294,22 +301,22 @@ func (a *Agent) run(ctx context.Context) error {
 		}
 	}()
 
-	utils.LogErr("write status", a.historyStore.Write(a.Status()))
+	util.LogErr("write status", a.historyStore.Write(a.Status()))
 
 	listen := make(chan error)
 	go func() {
 		err := a.socketServer.Serve(listen)
-		if err != nil && err != sock.ErrServerRequestedShutdown {
+		if err != nil && !errors.Is(err, sock.ErrServerRequestedShutdown) {
 			log.Printf("failed to start socket frontend %v", err)
 		}
 	}()
 
 	defer func() {
-		utils.LogErr("shutdown socket frontend", a.socketServer.Shutdown())
+		util.LogErr("shutdown socket frontend", a.socketServer.Shutdown())
 	}()
 
 	if err := <-listen; err != nil {
-		return fmt.Errorf("failed to start the socket frontend")
+		return errFailedStartSocketFrontend
 	}
 
 	done := make(chan *scheduler.Node)
@@ -318,8 +325,8 @@ func (a *Agent) run(ctx context.Context) error {
 	go func() {
 		for node := range done {
 			status := a.Status()
-			utils.LogErr("write status", a.historyStore.Write(status))
-			utils.LogErr("report step", a.reporter.ReportStep(a.DAG, status, node))
+			util.LogErr("write status", a.historyStore.Write(status))
+			util.LogErr("report step", a.reporter.ReportStep(a.DAG, status, node))
 		}
 	}()
 
@@ -328,22 +335,22 @@ func (a *Agent) run(ctx context.Context) error {
 		if a.finished.Load() {
 			return
 		}
-		utils.LogErr("write status", a.historyStore.Write(a.Status()))
+		util.LogErr("write status", a.historyStore.Write(a.Status()))
 	}()
 
-	ctx = dag.NewContext(ctx, a.DAG)
+	ctx = dag.NewContext(ctx, a.DAG, a.dataStoreFactory.NewDAGStore())
 
 	lastErr := a.scheduler.Schedule(ctx, a.graph, done)
 	status := a.Status()
 
 	log.Println("schedule finished.")
-	utils.LogErr("write status", a.historyStore.Write(a.Status()))
+	util.LogErr("write status", a.historyStore.Write(a.Status()))
 
 	a.reporter.ReportSummary(status, lastErr)
-	utils.LogErr("send email", a.reporter.SendMail(a.DAG, status, lastErr))
+	util.LogErr("send email", a.reporter.SendMail(a.DAG, status, lastErr))
 
 	a.finished.Store(true)
-	utils.LogErr("close data file", a.historyStore.Close())
+	util.LogErr("close data file", a.historyStore.Close())
 
 	return lastErr
 }
@@ -363,7 +370,7 @@ func (a *Agent) dryRun() error {
 
 	log.Printf("***** Starting DRY-RUN *****")
 
-	ctx := dag.NewContext(context.Background(), a.DAG)
+	ctx := dag.NewContext(context.Background(), a.DAG, a.dataStoreFactory.NewDAGStore())
 
 	lastErr := a.scheduler.Schedule(ctx, a.graph, done)
 	status := a.Status()
@@ -380,8 +387,7 @@ func (a *Agent) checkIsRunning() error {
 		return err
 	}
 	if status.Status != scheduler.StatusNone {
-		return fmt.Errorf("the DAG is already running. socket=%s",
-			a.DAG.SockAddr())
+		return fmt.Errorf("%w. socket=%s", errDAGAlreadyRunning, a.DAG.SockAddr())
 	}
 	return nil
 }
@@ -433,7 +439,7 @@ func (l *logManager) setupLogFile() (err error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	l.logFile, err = utils.OpenOrCreateFile(l.logFilename)
+	l.logFile, err = util.OpenOrCreateFile(l.logFilename)
 	return
 }
 

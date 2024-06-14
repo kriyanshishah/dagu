@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,12 +25,15 @@ type HTTPExecutor struct {
 }
 
 type HTTPConfig struct {
-	Timeout     int               `json:"timeout"`
-	Headers     map[string]string `json:"headers"`
-	QueryParams map[string]string `json:"query"`
-	Body        string            `json:"body"`
-	Silent      bool              `json:"silent"`
+	Timeout int               `json:"timeout"`
+	Headers map[string]string `json:"headers"`
+	Query   map[string]string `json:"query"`
+	Body    string            `json:"body"`
+	Silent  bool              `json:"silent"`
+	Debug   bool              `json:"debug"`
 }
+
+var errHttpStatusCode = errors.New("http status code not 2xx")
 
 func (e *HTTPExecutor) SetStdout(out io.Writer) {
 	e.stdout = out
@@ -64,7 +68,7 @@ func (e *HTTPExecutor) Run() error {
 		return err
 	}
 	if isErr {
-		return fmt.Errorf("http status code not 2xx: %d", resCode)
+		return fmt.Errorf("%w: %d", errHttpStatusCode, resCode)
 	}
 	return nil
 }
@@ -87,6 +91,9 @@ func CreateHTTPExecutor(ctx context.Context, step dag.Step) (Executor, error) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	client := resty.New()
+	if reqCfg.Debug {
+		client.SetDebug(true)
+	}
 	if reqCfg.Timeout > 0 {
 		client.SetTimeout(time.Second * time.Duration(reqCfg.Timeout))
 	}
@@ -94,8 +101,8 @@ func CreateHTTPExecutor(ctx context.Context, step dag.Step) (Executor, error) {
 	if len(reqCfg.Headers) > 0 {
 		req = req.SetHeaders(reqCfg.Headers)
 	}
-	if len(reqCfg.QueryParams) > 0 {
-		req = req.SetQueryParams(reqCfg.QueryParams)
+	if len(reqCfg.Query) > 0 {
+		req = req.SetQueryParams(reqCfg.Query)
 	}
 	req = req.SetBody([]byte(reqCfg.Body))
 

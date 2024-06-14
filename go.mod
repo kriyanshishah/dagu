@@ -1,6 +1,6 @@
 module github.com/dagu-dev/dagu
 
-go 1.19
+go 1.22.0
 
 require (
 	github.com/docker/docker v20.10.21+incompatible
@@ -21,11 +21,13 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.8.2
 	go.uber.org/fx v1.20.0
+	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/text v0.12.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -53,7 +55,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect

@@ -9,12 +9,13 @@ import (
 	"os"
 
 	"github.com/dagu-dev/dagu/internal/dag"
-	"github.com/dagu-dev/dagu/internal/utils"
+	"github.com/dagu-dev/dagu/internal/util"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 )
 
 type DockerExecutor struct {
@@ -27,6 +28,8 @@ type DockerExecutor struct {
 	context         context.Context
 	cancel          func()
 }
+
+var errImageMustBeString = errors.New("image must be string")
 
 func (e *DockerExecutor) SetStdout(out io.Writer) {
 	e.stdout = out
@@ -93,11 +96,11 @@ func (e *DockerExecutor) Run() error {
 	}
 
 	_, err = stdcopy.StdCopy(e.stdout, e.stdout, out)
-	utils.LogErr("docker executor: stdcopy", err)
+	util.LogErr("docker executor: stdcopy", err)
 
 	if e.autoRemove {
 		err := cli.ContainerRemove(ctx, resp.ID, types.ContainerRemoveOptions{})
-		utils.LogErr("docker executor: remove container", err)
+		util.LogErr("docker executor: remove container", err)
 	}
 
 	return nil
@@ -164,7 +167,7 @@ func CreateDockerExecutor(ctx context.Context, step dag.Step) (Executor, error) 
 			return exec, nil
 		}
 	}
-	return nil, fmt.Errorf("image must be string")
+	return nil, errImageMustBeString
 }
 
 func init() {

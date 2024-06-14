@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,14 +9,13 @@ import (
 	"time"
 
 	"github.com/dagu-dev/dagu/internal/dag"
-	"github.com/dagu-dev/dagu/internal/utils"
 )
 
 // ExecutionGraph represents a graph of steps.
 type ExecutionGraph struct {
 	startedAt       time.Time
 	finishedAt      time.Time
-	outputVariables *utils.SyncMap
+	outputVariables *dag.SyncMap
 	dict            map[int]*Node
 	nodes           []*Node
 	from            map[int][]int
@@ -23,10 +23,15 @@ type ExecutionGraph struct {
 	mu              sync.RWMutex
 }
 
+var (
+	errCycleDetected = errors.New("cycle detected")
+	errStepNotFound  = errors.New("step not found")
+)
+
 // NewExecutionGraph creates a new execution graph with the given steps.
 func NewExecutionGraph(steps ...dag.Step) (*ExecutionGraph, error) {
 	graph := &ExecutionGraph{
-		outputVariables: &utils.SyncMap{},
+		outputVariables: &dag.SyncMap{},
 		dict:            make(map[int]*Node),
 		from:            make(map[int][]int),
 		to:              make(map[int][]int),
@@ -48,7 +53,7 @@ func NewExecutionGraph(steps ...dag.Step) (*ExecutionGraph, error) {
 // NewExecutionGraphForRetry creates a new execution graph for retry with given nodes.
 func NewExecutionGraphForRetry(nodes ...*Node) (*ExecutionGraph, error) {
 	graph := &ExecutionGraph{
-		outputVariables: &utils.SyncMap{},
+		outputVariables: &dag.SyncMap{},
 		dict:            make(map[int]*Node),
 		from:            make(map[int][]int),
 		to:              make(map[int][]int),
@@ -57,8 +62,15 @@ func NewExecutionGraphForRetry(nodes ...*Node) (*ExecutionGraph, error) {
 	for _, node := range nodes {
 		if node.step.OutputVariables != nil {
 			node.step.OutputVariables.Range(func(key, value interface{}) bool {
-				k := key.(string)
-				v := value.(string)
+				k, ok := key.(string)
+				if !ok {
+					return false
+				}
+				v, ok := value.(string)
+				if !ok {
+					return false
+				}
+
 				graph.outputVariables.Store(key, value)
 				err := os.Setenv(k, v[len(key.(string))+1:])
 				if err != nil {
@@ -192,7 +204,7 @@ func (g *ExecutionGraph) setup() error {
 	}
 
 	if g.hasCycle() {
-		return fmt.Errorf("cycle detected")
+		return errCycleDetected
 	}
 
 	return nil
@@ -245,5 +257,5 @@ func (g *ExecutionGraph) findStep(name string) (*Node, error) {
 			return n, nil
 		}
 	}
-	return nil, fmt.Errorf("step not found: %s", name)
+	return nil, fmt.Errorf("%w: %s", errStepNotFound, name)
 }

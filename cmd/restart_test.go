@@ -1,14 +1,15 @@
 package cmd
 
 import (
+	"os"
+	"testing"
+	"time"
+
 	"github.com/dagu-dev/dagu/internal/config"
 	"github.com/dagu-dev/dagu/internal/engine"
 	"github.com/dagu-dev/dagu/internal/persistence/client"
 	"github.com/dagu-dev/dagu/internal/scheduler"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestRestartCommand(t *testing.T) {
@@ -54,7 +55,7 @@ func TestRestartCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	df := client.NewDataStoreFactory(config.Get())
-	e = engine.NewFactory(df, nil).Create()
+	e = engine.NewFactory(df, config.Get()).Create()
 
 	sts := e.GetRecentHistory(d, 2)
 	require.Len(t, sts, 2)

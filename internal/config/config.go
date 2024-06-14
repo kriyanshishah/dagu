@@ -2,22 +2,19 @@ package config
 
 import (
 	"fmt"
+	"github.com/spf13/viper"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
-
-	"github.com/dagu-dev/dagu/internal/utils"
-	"github.com/spf13/viper"
 )
 
 type Config struct {
 	Host               string
 	Port               int
 	DAGs               string
-	Command            string
+	Executable         string
 	WorkDir            string
 	IsBasicAuth        bool
 	BasicAuthUsername  string
@@ -35,6 +32,13 @@ type Config struct {
 	IsAuthToken        bool
 	AuthToken          string
 	LatestStatusToday  bool
+<<<<<<< HEAD
+=======
+}
+
+func (cfg *Config) GetAPIBaseURL() string {
+	return "/api/v1"
+>>>>>>> 6b68bb3079fad58e733c7d7d9b827db71b3946ae
 }
 
 type TLS struct {
@@ -43,48 +47,44 @@ type TLS struct {
 }
 
 var (
+	cache = &configCache{}
+)
+
+type configCache struct {
 	instance *Config
 	mu       sync.RWMutex
-	isLoaded atomic.Bool
-)
+}
+
+func (cc *configCache) getConfig() *Config {
+	cc.mu.RLock()
+	defer cc.mu.RUnlock()
+	return cc.instance
+}
+
+func (cc *configCache) setConfig(cfg *Config) {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	cc.instance = cfg
+}
 
 func Get() *Config {
-	if !isLoaded.Load() {
-		home, _ := os.UserHomeDir()
-		if err := LoadConfig(home); err != nil {
-			panic(err)
-		}
+	cfg := cache.getConfig()
+	if cfg != nil {
+		return cfg
 	}
-	return getConfig()
+	if err := LoadConfig(); err != nil {
+		panic(err)
+	}
+	return cache.getConfig()
 }
 
-func getConfig() *Config {
-	mu.Lock()
-	defer mu.Unlock()
-	return instance
-}
-
-func setConfig(cfg *Config) {
-	mu.Lock()
-	defer mu.Unlock()
-	isLoaded.Swap(true)
-	instance = cfg
-}
-
-var (
-	loadConfigLock sync.Mutex
-)
-
-func LoadConfig(userHomeDir string) error {
-	loadConfigLock.Lock()
-	defer loadConfigLock.Unlock()
-
-	appHome := appHomeDir(userHomeDir)
+func LoadConfig() error {
+	appHome := appHomeDir()
 
 	viper.SetEnvPrefix("dagu")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	_ = viper.BindEnv("command", "DAGU_EXECUTABLE")
+	_ = viper.BindEnv("executable", "DAGU_EXECUTABLE")
 	_ = viper.BindEnv("dags", "DAGU_DAGS_DIR")
 	_ = viper.BindEnv("workDir", "DAGU_WORK_DIR")
 	_ = viper.BindEnv("isBasicAuth", "DAGU_IS_BASICAUTH")
@@ -103,14 +103,15 @@ func LoadConfig(userHomeDir string) error {
 	_ = viper.BindEnv("isAuthToken", "DAGU_IS_AUTHTOKEN")
 	_ = viper.BindEnv("authToken", "DAGU_AUTHTOKEN")
 	_ = viper.BindEnv("latestStatusToday", "DAGU_LATEST_STATUS")
-	command := "dagu"
-	if ex, err := os.Executable(); err == nil {
-		command = ex
+
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
 	viper.SetDefault("host", "127.0.0.1")
 	viper.SetDefault("port", "8080")
-	viper.SetDefault("command", command)
+	viper.SetDefault("executable", executable)
 	viper.SetDefault("dags", path.Join(appHome, "dags"))
 	viper.SetDefault("workDir", "")
 	viper.SetDefault("isBasicAuth", "0")
@@ -133,20 +134,23 @@ func LoadConfig(userHomeDir string) error {
 	_ = viper.ReadInConfig()
 
 	cfg := &Config{}
-	err := viper.Unmarshal(cfg)
-	if err != nil {
+	if err := viper.Unmarshal(cfg); err != nil {
 		return fmt.Errorf("failed to unmarshal cfg file: %w", err)
 	}
 	loadLegacyEnvs(cfg)
 	loadEnvs(cfg)
 
-	setConfig(cfg)
+	cache.setConfig(cfg)
 
 	return nil
 }
 
-func (cfg *Config) GetAPIBaseURL() string {
-	return "/api/v1"
+func homeDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	return home
 }
 
 func loadEnvs(cfg *Config) {
@@ -154,11 +158,6 @@ func loadEnvs(cfg *Config) {
 		_ = os.Setenv(k.(string), v.(string))
 		return true
 	})
-	for k, v := range utils.DefaultEnv() {
-		if _, ok := cfg.Env.Load(k); !ok {
-			cfg.Env.Store(k, v)
-		}
-	}
 }
 
 func loadLegacyEnvs(cfg *Config) {
@@ -200,10 +199,10 @@ const (
 	appHomeDefault = ".dagu"
 )
 
-func appHomeDir(userHomeDir string) string {
+func appHomeDir() string {
 	appDir := os.Getenv(appHomeEnv)
 	if appDir == "" {
-		return path.Join(userHomeDir, appHomeDefault)
+		return path.Join(homeDir(), appHomeDefault)
 	}
 	return appDir
 }

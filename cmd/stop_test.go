@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"github.com/dagu-dev/dagu/internal/scheduler"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/dagu-dev/dagu/internal/scheduler"
 )
 
 func TestStopCommand(t *testing.T) {
@@ -22,7 +23,7 @@ func TestStopCommand(t *testing.T) {
 		close(done)
 	}()
 
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Millisecond * 100)
 
 	// Wait for the DAG running.
 	// TODO: Do not use history store.

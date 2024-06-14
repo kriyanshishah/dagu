@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/images/dagu-logo.png" width="500" alt="dagu-logo">
+  <img src="./assets/images/dagu-logo.webp" width="960" alt="dagu-logo">
 </p>
 
 <p align="center">
@@ -20,15 +20,16 @@
 
 <div align="center">
 
-[Installation](#installation) | [Community](https://discord.gg/gpahPUjGRk) | [Quick Start](#️quick-start-guide) 
+[Installation](https://dagu.readthedocs.io/en/latest/installation.html) | [Community](https://discord.gg/gpahPUjGRk) | [Quick Start](https://dagu.readthedocs.io/en/latest/quickstart.html) 
 
 </div>
 
 <h1><b>Dagu</b></h1>
 
-Dagu is a powerful Cron alternative that comes with a Web UI. It allows you to define dependencies between commands as a [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in a declarative [YAML format](https://dagu.readthedocs.io/en/latest/yaml_format.html). Additionally, Dagu natively supports running Docker containers, making HTTP requests, and executing commands over SSH.
+Dagu is a powerful Cron alternative that comes with a Web UI. It allows you to define dependencies between commands as a [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in a declarative [YAML format](https://dagu.readthedocs.io/en/latest/yaml_format.html). Dagu simplifies the management and execution of complex workflows. It natively supports running Docker containers, making HTTP requests, and executing commands over SSH.
 
 - [Documentation](https://dagu.readthedocs.io) 
+- [Localized Documentation](#localized-documentation)
 - [Discord Community](https://discord.gg/gpahPUjGRk)
 
 ## **Highlights**
@@ -43,29 +44,30 @@ Dagu is a powerful Cron alternative that comes with a Web UI. It allows you to d
 - [**Highlights**](#highlights)
 - [**Table of Contents**](#table-of-contents)
 - [**Features**](#features)
-- [**Usecase**](#usecase)
+- [**Use Cases**](#use-cases)
 - [**Web UI**](#web-ui)
   - [DAG Details](#dag-details)
-  - [DAGs List](#dags-list)
-  - [Search DAGs](#search-dags)
+  - [DAGs](#dags)
+  - [Search](#search)
   - [Execution History](#execution-history)
-  - [DAG Execution Log](#dag-execution-log)
+  - [Log Viewer](#log-viewer)
 - [**Installation**](#installation)
-  - [Via Homebrew](#via-homebrew)
   - [Via Bash script](#via-bash-script)
-  - [Via Docker](#via-docker)
   - [Via GitHub Releases Page](#via-github-releases-page)
+  - [Via Homebrew (macOS)](#via-homebrew-macos)
+  - [Via Docker](#via-docker)
 - [**Quick Start Guide**](#quick-start-guide)
   - [1. Launch the Web UI](#1-launch-the-web-ui)
   - [2. Create a New DAG](#2-create-a-new-dag)
   - [3. Edit the DAG](#3-edit-the-dag)
   - [4. Execute the DAG](#4-execute-the-dag)
 - [**CLI**](#cli)
+- [**Localized Documentation**](#localized-documentation)
 - [**Documentation**](#documentation)
 - [**Running as a daemon**](#running-as-a-daemon)
-- [**Example Workflow**](#example-workflow)
+- [**Example DAG**](#example-dag)
 - [**Motivation**](#motivation)
-- [**Why Not Use an Existing Workflow Scheduler Like Airflow?**](#why-not-use-an-existing-workflow-scheduler-like-airflow)
+- [**Why Not Use an Existing DAG Scheduler Like Airflow?**](#why-not-use-an-existing-dag-scheduler-like-airflow)
 - [**How It Works**](#how-it-works)
 - [**License**](#license)
 - [**Support and Community**](#support-and-community)
@@ -94,7 +96,7 @@ Dagu is a powerful Cron alternative that comes with a Web UI. It allows you to d
 - REST API Interface
 - Basic Authentication over HTTPS
 
-## **Usecase**
+## **Use Cases**
 
 - **Data Pipeline Automation:** Schedule ETL tasks for data processing and centralization.
 - **Infrastructure Monitoring:** Periodically check infrastructure components with HTTP requests or SSH commands.
@@ -118,15 +120,15 @@ It shows the real-time status, logs, and DAG configurations. You can edit DAG co
 
   ![Details-TD](assets/images/ui-details2.webp?raw=true)
 
-### DAGs List
+### DAGs
 
 It shows all DAGs and the real-time status.
 
   ![DAGs](assets/images/ui-dags.webp?raw=true)
 
-### Search DAGs
+### Search
 
-It greps given text across all DAGs.
+It greps given text across all DAG definitions.
   ![History](assets/images/ui-search.webp?raw=true)
 
 ### Execution History
@@ -135,7 +137,7 @@ It shows past execution results and logs.
 
   ![History](assets/images/ui-history.webp?raw=true)
 
-### DAG Execution Log
+### Log Viewer
 
 It shows the detail log and standard output of each execution and step.
 
@@ -145,7 +147,18 @@ It shows the detail log and standard output of each execution and step.
 
 You can install Dagu quickly using Homebrew or by downloading the latest binary from the Releases page on GitHub.
 
-### Via Homebrew
+### Via Bash script
+
+```sh
+curl -L https://raw.githubusercontent.com/yohamta/dagu/main/scripts/installer.sh | bash
+```
+
+### Via GitHub Releases Page
+
+Download the latest binary from the [Releases page](https://github.com/dagu-dev/dagu/releases) and place it in your `$PATH` (e.g. `/usr/local/bin`).
+
+
+### Via Homebrew (macOS)
 ```sh
 brew install yohamta/tap/dagu
 ```
@@ -155,27 +168,17 @@ Upgrade to the latest version:
 brew upgrade yohamta/tap/dagu
 ```
 
-### Via Bash script
-
-```sh
-curl -L https://raw.githubusercontent.com/yohamta/dagu/main/scripts/downloader.sh | bash
-```
-
 ### Via Docker
 
 ```sh
 docker run \
 --rm \
 -p 8080:8080 \
--v $(pwd)/dagu/dags:/home/dagu/.dagu/dags \
--v $(pwd)/dagu/data:/home/dagu/.dagu/data \
--v $(pwd)/dagu/logs:/home/dagu/.dagu/logs \
-docker pull ghcr.io/dagu-dev/dagu:latest dagu start-all
+-v $HOME/.dagu/dags:/home/dagu/.dagu/dags \
+-v $HOME/.dagu/data:/home/dagu/.dagu/data \
+-v $HOME/.dagu/logs:/home/dagu/.dagu/logs \
+ghcr.io/dagu-dev/dagu:latest dagu start-all
 ```
-
-### Via GitHub Releases Page
-
-Download the latest binary from the [Releases page](https://github.com/dagu-dev/dagu/releases) and place it in your `$PATH` (e.g. `/usr/local/bin`).
 
 ## **Quick Start Guide**
 
@@ -185,7 +188,7 @@ Start the server and scheduler with the command `dagu start-all` and browse to `
 
 ### 2. Create a New DAG
 
-Navigate to the DAG List page by clicking the menu in the left panel of the Web UI. Then create a DAG by clicking the `New DAG` button at the top of the page. Enter `example` in the dialog.
+Navigate to the DAG List page by clicking the menu in the left panel of the Web UI. Then create a DAG by clicking the `NEW` button at the top of the page. Enter `example` in the dialog.
 
 *Note: DAG (YAML) files will be placed in `~/.dagu/dags` by default. See [Configuration Options](https://dagu.readthedocs.io/en/latest/config.html) for more details.*
 
@@ -243,34 +246,39 @@ dagu scheduler [--dags=<path to directory>]
 dagu version
 ```
 
-## **Documentation**
+## **Localized Documentation**
+- [中文文档 (Chinese Documentation)](https://dagu.readthedocs.io/zh)
+- [日本語ドキュメント (Japanese Documentation)](https://dagu.readthedocs.io/ja)
 
+## **Documentation**
 - [Installation Instructions](https://dagu.readthedocs.io/en/latest/installation.html)
 - ️[Quick Start Guide](https://dagu.readthedocs.io/en/latest/quickstart.html)
 - [Command Line Interface](https://dagu.readthedocs.io/en/latest/cli.html)
 - [Web User Interface](https://dagu.readthedocs.io/en/latest/web_interface.html)
-- YAML Format
+- Writing DAG
   - [Minimal DAG Definition](https://dagu.readthedocs.io/en/latest/yaml_format.html#minimal-dag-definition)
   - [Running Arbitrary Code Snippets](https://dagu.readthedocs.io/en/latest/yaml_format.html#running-arbitrary-code-snippets)
-  - [Defining Environment Variables](https://dagu.readthedocs.io/en/latest/yaml_format.html#defining-environment-variables)
-  - [Defining and Using Parameters](https://dagu.readthedocs.io/en/latest/yaml_format.html#defining-and-using-parameters)
-  - [Using Command Substitution](https://dagu.readthedocs.io/en/latest/yaml_format.html#using-command-substitution)
-  - [Adding Conditional Logic](https://dagu.readthedocs.io/en/latest/yaml_format.html#adding-conditional-logic)
-  - [Setting Environment Variables with Standard Output](https://dagu.readthedocs.io/en/latest/yaml_format.html#setting-environment-variables-with-standard-output)
+  - [Environment Variables](https://dagu.readthedocs.io/en/latest/yaml_format.html#defining-environment-variables)
+  - [Parameters](https://dagu.readthedocs.io/en/latest/yaml_format.html#defining-and-using-parameters)
+  - [Command Substitution](https://dagu.readthedocs.io/en/latest/yaml_format.html#using-command-substitution)
+  - [Conditional Logic](https://dagu.readthedocs.io/en/latest/yaml_format.html#adding-conditional-logic)
+  - [Environment Variables with Standard Output](https://dagu.readthedocs.io/en/latest/yaml_format.html#setting-environment-variables-with-standard-output)
   - [Redirecting Stdout and Stderr](https://dagu.readthedocs.io/en/latest/yaml_format.html#redirecting-stdout-and-stderr)
-  - [Adding Lifecycle Hooks](https://dagu.readthedocs.io/en/latest/yaml_format.html#adding-lifecycle-hooks)
-  - [Repeating a Task at Regular Intervals](https://dagu.readthedocs.io/en/latest/yaml_format.html#repeating-a-task-at-regular-intervals)
-  - [All Available Fields for DAGs](https://dagu.readthedocs.io/en/latest/yaml_format.html#all-available-fields-for-dags)
-  - [All Available Fields for Steps](https://dagu.readthedocs.io/en/latest/yaml_format.html#all-available-fields-for-steps)
+  - [Lifecycle Hooks](https://dagu.readthedocs.io/en/latest/yaml_format.html#adding-lifecycle-hooks)
+  - [Repeating Task](https://dagu.readthedocs.io/en/latest/yaml_format.html#repeating-a-task-at-regular-intervals)
+  - [Minimal DAG Definition](https://dagu.readthedocs.io/en/latest/yaml_format.html#minimal-dag-definition)
+  - [Running Sub-DAG](https://dagu.readthedocs.io/en/latest/yaml_format.html#running-sub-dag)
+  - [All Available Fields for a DAG](https://dagu.readthedocs.io/en/latest/yaml_format.html#all-available-fields-for-dags)
+  - [All Available Fields for a Step](https://dagu.readthedocs.io/en/latest/yaml_format.html#all-available-fields-for-steps)
 - Example DAGs
   - [Hello World](https://dagu.readthedocs.io/en/latest/examples.html#hello-world)
   - [Conditional Steps](https://dagu.readthedocs.io/en/latest/examples.html#conditional-steps)
   - [File Output](https://dagu.readthedocs.io/en/latest/examples.html#file-output)
   - [Passing Output to Next Step](https://dagu.readthedocs.io/en/latest/examples.html#passing-output-to-next-step)
-  - [Running a Docker Container](https://dagu.readthedocs.io/en/latest/examples.html#running-a-docker-container)
-  - [Sending HTTP Requests](https://dagu.readthedocs.io/en/latest/examples.html#sending-http-requests)
-  - [Querying JSON Data with jq](https://dagu.readthedocs.io/en/latest/examples.html#querying-json-data-with-jq)
-  - [Sending Email](https://dagu.readthedocs.io/en/latest/examples.html#sending-email)
+  - [Running a Container Image](https://dagu.readthedocs.io/en/latest/examples.html#running-a-docker-container)
+  - [Making HTTP Requests](https://dagu.readthedocs.io/en/latest/examples.html#sending-http-requests)
+  - [JSON Processing](https://dagu.readthedocs.io/en/latest/examples.html#querying-json-data-with-jq)
+  - [Email](https://dagu.readthedocs.io/en/latest/examples.html#sending-email)
 - [Configurations](https://dagu.readthedocs.io/en/latest/config.html)
 - [Scheduler](https://dagu.readthedocs.io/en/latest/scheduler.html)
 - [Docker Compose](https://dagu.readthedocs.io/en/latest/docker-compose.html)
@@ -295,13 +303,13 @@ fi
 exit
 ```
 
-## **Example Workflow**
+## **Example DAG**
 
-This example workflow showcases a data pipeline typically implemented in DevOps and Data Engineering scenarios. It demonstrates an end-to-end data processing cycle starting from data acquisition and cleansing to transformation, loading, analysis, reporting, and ultimately, cleanup.
+This example DAG showcases a data pipeline typically implemented in DevOps and Data Engineering scenarios. It demonstrates an end-to-end data processing cycle starting from data acquisition and cleansing to transformation, loading, analysis, reporting, and ultimately, cleanup.
 
 ![Details-TD](assets/images/example.webp?raw=true)
 
-The YAML code below represents this workflow:
+The YAML code below represents this DAG:
 
 ```yaml
 # Environment variables used throughout the pipeline
@@ -318,14 +326,14 @@ handlerOn:
   exit:
     command: "echo clean up"
 
-# The schedule for the workflow execution in cron format
-# This schedule runs the workflow daily at 12:00 AM
+# The schedule for the DAG execution in cron format
+# This schedule runs the DAG daily at 12:00 AM
 schedule: "0 0 * * *"
 
 steps:
   # Step 1: Pull the latest data from a data source
   - name: pull_data
-    command: "bash"
+    command: "sh"
     script: |
       echo `date '+%Y-%m-%d'`
     output: DATE
@@ -378,7 +386,9 @@ steps:
 
 Legacy systems often have complex and implicit dependencies between jobs. When there are hundreds of cron jobs on a server, it can be difficult to keep track of these dependencies and to determine which job to rerun if one fails. It can also be a hassle to SSH into a server to view logs and manually rerun shell scripts one by one. Dagu aims to solve these problems by allowing you to explicitly visualize and manage pipeline dependencies as a DAG, and by providing a web UI for checking dependencies, execution status, and logs and for rerunning or stopping jobs with a simple mouse click.
 
-## **Why Not Use an Existing Workflow Scheduler Like Airflow?**
+Dagu addresses these pain points by providing a user-friendly solution for explicitly defining and visualizing workflows. With its intuitive web UI, Dagu simplifies the management of workflows, enabling users to easily check dependencies, monitor execution status, view logs, and control job execution with just a few clicks.
+
+## **Why Not Use an Existing DAG Scheduler Like Airflow?**
 
 There are many existing tools such as Airflow, but many of these require you to write code in a programming language like Python to define your DAG. For systems that have been in operation for a long time, there may already be complex jobs with hundreds of thousands of lines of code written in languages like Perl or Shell Script. Adding another layer of complexity on top of these codes can reduce maintainability. Dagu was designed to be easy to use, self-contained, and require no coding, making it ideal for small projects.
 

@@ -1,11 +1,10 @@
 package cmd
 
 import (
+	scheduler "github.com/dagu-dev/dagu/service"
 	"log"
 
-	"github.com/dagu-dev/dagu/app"
 	"github.com/dagu-dev/dagu/internal/config"
-	"github.com/dagu-dev/dagu/service/core"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -19,22 +18,20 @@ func startAllCmd() *cobra.Command {
 			_ = viper.BindPFlag("port", cmd.Flags().Lookup("port"))
 			_ = viper.BindPFlag("host", cmd.Flags().Lookup("host"))
 			_ = viper.BindPFlag("dags", cmd.Flags().Lookup("dags"))
-			cobra.CheckErr(config.LoadConfig(homeDir))
+			cobra.CheckErr(config.LoadConfig())
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			ctx := cmd.Context()
 
 			go func() {
 				config.Get().DAGs = getFlagString(cmd, "dags", config.Get().DAGs)
-				err := core.NewScheduler(app.TopLevelModule).Start(cmd.Context())
+				err := scheduler.New(topLevelModule).Start(cmd.Context())
 				if err != nil {
-					log.Fatal(err)
+					log.Fatal(err) // nolint // deep-exit
 				}
 			}()
 
-			service := app.NewFrontendService()
-			err := service.Start(ctx)
-			checkError(err)
+			checkError(newFrontend().Start(ctx))
 		},
 	}
 	bindStartAllCommandFlags(cmd)

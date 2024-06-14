@@ -15,7 +15,7 @@ import (
 
 	"github.com/dagu-dev/dagu/internal/dag"
 	"github.com/dagu-dev/dagu/internal/executor"
-	"github.com/dagu-dev/dagu/internal/utils"
+	"github.com/dagu-dev/dagu/internal/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -113,7 +113,7 @@ func (n *Node) Execute(ctx context.Context) error {
 	}
 	n.SetError(cmd.Run())
 	if n.outputReader != nil && n.step.Output != "" {
-		utils.LogErr("close pipe writer", n.outputWriter.Close())
+		util.LogErr("close pipe writer", n.outputWriter.Close())
 		var buf bytes.Buffer
 		// TODO: Error handling
 		_, _ = io.Copy(&buf, n.outputReader)
@@ -130,10 +130,11 @@ func (n *Node) setupExec(ctx context.Context) (executor.Executor, error) {
 	defer n.mu.Unlock()
 
 	ctx, fn := context.WithCancel(ctx)
+
 	n.cancelFunc = fn
 
 	if n.step.CmdWithArgs != "" {
-		n.step.Command, n.step.Args = utils.SplitCommand(n.step.CmdWithArgs, true)
+		n.step.Command, n.step.Args = util.SplitCommand(n.step.CmdWithArgs, true)
 	}
 
 	if n.scriptFile != nil {
@@ -234,7 +235,7 @@ func (n *Node) signal(sig os.Signal, allowOverride bool) {
 			sigsig = unix.SignalNum(n.step.SignalOnStop)
 		}
 		log.Printf("Sending %s signal to %s", sigsig, n.step.Name)
-		utils.LogErr("sending signal", n.cmd.Kill(sigsig))
+		util.LogErr("sending signal", n.cmd.Kill(sigsig))
 	}
 	if status == NodeStatusRunning {
 		n.Status = NodeStatusCancel
@@ -260,9 +261,9 @@ func (n *Node) setup(logDir string, requestId string) error {
 
 	n.StartedAt = time.Now()
 	n.Log = filepath.Join(logDir, fmt.Sprintf("%s.%s.%s.log",
-		utils.ValidFilename(n.step.Name, "_"),
+		util.ValidFilename(n.step.Name, "_"),
 		n.StartedAt.Format("20060102.15:04:05.000"),
-		utils.TruncString(requestId, 8),
+		util.TruncString(requestId, 8),
 	))
 	for _, fn := range []func() error{
 		n.setupLog,
@@ -280,6 +281,9 @@ func (n *Node) setup(logDir string, requestId string) error {
 
 func (n *Node) setupScript() (err error) {
 	if n.step.Script != "" {
+		if len(n.step.Dir) > 0 && !util.FileExists(n.step.Dir) {
+			return fmt.Errorf("directory %q does not exist", n.step.Dir)
+		}
 		n.scriptFile, _ = os.CreateTemp(n.step.Dir, "dagu_script-")
 		if _, err = n.scriptFile.WriteString(n.step.Script); err != nil {
 			return
@@ -299,7 +303,7 @@ func (n *Node) setupStdout() error {
 			f = filepath.Join(n.step.Dir, f)
 		}
 		var err error
-		n.stdoutFile, err = utils.OpenOrCreateFile(f)
+		n.stdoutFile, err = util.OpenOrCreateFile(f)
 		if err != nil {
 			n.Error = err
 			return err
@@ -316,7 +320,7 @@ func (n *Node) setupStderr() error {
 			f = filepath.Join(n.step.Dir, f)
 		}
 		var err error
-		n.stderrFile, err = utils.OpenOrCreateFile(f)
+		n.stderrFile, err = util.OpenOrCreateFile(f)
 		if err != nil {
 			n.Error = err
 			return err
@@ -333,7 +337,7 @@ func (n *Node) setupLog() error {
 	n.logLock.Lock()
 	defer n.logLock.Unlock()
 	var err error
-	n.logFile, err = utils.OpenOrCreateFile(n.Log)
+	n.logFile, err = util.OpenOrCreateFile(n.Log)
 	if err != nil {
 		n.Error = err
 		return err
@@ -348,7 +352,7 @@ func (n *Node) teardown() error {
 	}
 	n.logLock.Lock()
 	n.done = true
-	var lastErr error = nil
+	var lastErr error
 	for _, w := range []*bufio.Writer{n.logWriter, n.stdoutWriter} {
 		if w != nil {
 			if err := w.Flush(); err != nil {

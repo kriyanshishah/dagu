@@ -23,6 +23,11 @@ const (
 	StatusSuccess
 )
 
+var (
+	errUpstreamFailed  = fmt.Errorf("upstream failed")
+	errUpstreamSkipped = fmt.Errorf("upstream skipped")
+)
+
 func (s Status) String() string {
 	switch s {
 	case StatusRunning:
@@ -64,6 +69,7 @@ type Config struct {
 }
 
 // Schedule runs the graph of steps.
+// nolint // cognitive complexity
 func (sc *Scheduler) Schedule(ctx context.Context, g *ExecutionGraph, done chan *Node) error {
 	if err := sc.setup(); err != nil {
 		return err
@@ -139,6 +145,7 @@ func (sc *Scheduler) Schedule(ctx context.Context, g *ExecutionGraph, done chan 
 						default:
 							// finish the node
 							node.setStatus(NodeStatusError)
+							node.setErr(execErr)
 							sc.lastError = execErr
 						}
 					}
@@ -305,17 +312,19 @@ func isReady(g *ExecutionGraph, node *Node) bool {
 			if !n.step.ContinueOn.Failure {
 				ready = false
 				node.setStatus(NodeStatusCancel)
-				node.SetError(fmt.Errorf("upstream failed"))
+				node.SetError(errUpstreamFailed)
 			}
 		case NodeStatusSkipped:
 			if !n.step.ContinueOn.Skipped {
 				ready = false
 				node.setStatus(NodeStatusSkipped)
-				node.SetError(fmt.Errorf("upstream skipped"))
+				node.SetError(errUpstreamSkipped)
 			}
 		case NodeStatusCancel:
 			ready = false
 			node.setStatus(NodeStatusCancel)
+		case NodeStatusNone, NodeStatusRunning:
+			ready = false
 		default:
 			ready = false
 		}
@@ -387,8 +396,7 @@ func (sc *Scheduler) setCanceled() {
 func (sc *Scheduler) runningCount(g *ExecutionGraph) int {
 	count := 0
 	for _, node := range g.Nodes() {
-		switch node.State().Status {
-		case NodeStatusRunning:
+		if node.State().Status == NodeStatusRunning {
 			count++
 		}
 	}
@@ -397,8 +405,7 @@ func (sc *Scheduler) runningCount(g *ExecutionGraph) int {
 
 func (sc *Scheduler) isFinished(g *ExecutionGraph) bool {
 	for _, node := range g.Nodes() {
-		switch node.State().Status {
-		case NodeStatusRunning, NodeStatusNone:
+		if node.State().Status == NodeStatusRunning || node.State().Status == NodeStatusNone {
 			return false
 		}
 	}

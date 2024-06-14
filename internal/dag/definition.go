@@ -1,12 +1,15 @@
 package dag
 
-type configDefinition struct {
+// definition is a temporary struct to hold the DAG definition.
+// This struct is used to unmarshal the YAML data.
+// The data is then converted to the DAG struct.
+type definition struct {
 	Name              string
 	Group             string
 	Description       string
-	Schedule          interface{}
+	Schedule          any
 	LogDir            string
-	Env               interface{}
+	Env               any
 	HandlerOn         handerOnDef
 	Functions         []*funcDef
 	Steps             []*stepDef
@@ -41,7 +44,7 @@ type stepDef struct {
 	Description   string
 	Dir           string
 	Executor      interface{}
-	Command       string
+	Command       interface{}
 	Script        string
 	Stdout        string
 	Stderr        string
@@ -55,6 +58,8 @@ type stepDef struct {
 	SignalOnStop  *string
 	Env           string
 	Call          *callFuncDef
+	Run           string // Run is a sub workflow to run
+	Params        string // Params is a string of parameters to pass to the sub workflow
 }
 
 type funcDef struct {
